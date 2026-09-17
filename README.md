@@ -69,14 +69,14 @@ streamlit run API_Request_wrapper.py
 
 1. Open the app and, in the sidebar, upload your credentials JSON file.
 2. In the main panel, paste (or edit) the JSON body for your `POST /reports` request — a working example for a single-dimension report is pre-filled.
-3. Click **"Esegui report"** (Run report).
+3. Click **"Run report"**.
 4. The app will:
    - Request an OAuth access token from Adobe IMS
    - Call `https://cja.adobe.io/reports` with your payload
    - Parse the response into a table
    - Show a **Debug** expander with the raw first row and the `columns` block from the response — open it if a dimension column looks empty or wrong
    - Let you download the table as CSV
-5. Optionally check "Mostra risposta JSON completa" in the sidebar to see the full raw JSON response.
+5. Optionally check "Show full JSON response" in the sidebar to see the full raw JSON response.
 
 ### Multi-dimension reports
 
@@ -97,6 +97,16 @@ The app detects this automatically and creates one column per dimension. Adobe d
 - The app never persists the uploaded credentials file to disk — it's read in memory for the session only.
 - Access tokens are requested fresh on every report run and are not cached or stored.
 
+## Suggested `.gitignore`
+
+```
+*.json
+!requirements.json
+.venv/
+__pycache__/
+.streamlit/
+```
+(Adjust if you want to keep some JSON files, e.g. a config template, tracked.)
 
 ## Project structure
 

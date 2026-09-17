@@ -13,32 +13,32 @@ st.title("Adobe CJA Report Runner")
 # ==============================
 def load_config_from_uploaded_file(uploaded_file) -> dict:
     """
-    Legge il file JSON caricato da Streamlit e restituisce il dict config.
-    Supporta sia 'scope' che 'scopes'.
+    Reads the JSON credentials file uploaded via Streamlit and returns the config dict.
+    Supports both 'scope' and 'scopes'.
     """
     try:
         content = uploaded_file.read().decode("utf-8")
         config = json.loads(content)
     except Exception as e:
-        raise ValueError(f"Impossibile leggere il file JSON credenziali: {e}")
+        raise ValueError(f"Could not read the credentials JSON file: {e}")
 
     required_keys = ["client_id", "org_id"]
     for key in required_keys:
         if key not in config:
-            raise ValueError(f"Chiave mancante nel file credenziali: '{key}'")
+            raise ValueError(f"Missing key in credentials file: '{key}'")
 
     if "client_secret" not in config and "secret" not in config:
-        raise ValueError("Nel file credenziali manca 'client_secret' oppure 'secret'")
+        raise ValueError("The credentials file is missing 'client_secret' or 'secret'")
 
     if "scope" not in config and "scopes" not in config:
-        raise ValueError("Nel file credenziali manca 'scope' oppure 'scopes'")
+        raise ValueError("The credentials file is missing 'scope' or 'scopes'")
 
     return config
 
 
 def get_access_token(client_id: str, client_secret: str, scope: str) -> str:
     """
-    Recupera il token OAuth Server-to-Server Adobe.
+    Retrieves an Adobe Server-to-Server OAuth token.
     """
     url = "https://ims-na1.adobelogin.com/ims/token/v3"
 
@@ -59,7 +59,7 @@ def get_access_token(client_id: str, client_secret: str, scope: str) -> str:
         response.raise_for_status()
     except requests.HTTPError:
         raise Exception(
-            f"Errore nel recupero token: {response.status_code} - {response.text}"
+            f"Error retrieving token: {response.status_code} - {response.text}"
         )
 
     data = response.json()
@@ -68,7 +68,7 @@ def get_access_token(client_id: str, client_secret: str, scope: str) -> str:
 
 def run_cja_report(access_token: str, client_id: str, org_id: str, report_payload: dict) -> dict:
     """
-    Esegue la POST del report CJA.
+    Executes the CJA report POST request.
     """
     url = "https://cja.adobe.io/reports"
 
@@ -86,14 +86,14 @@ def run_cja_report(access_token: str, client_id: str, org_id: str, report_payloa
         response.raise_for_status()
     except requests.HTTPError:
         raise Exception(
-            f"Errore nella report request: {response.status_code} - {response.text}"
+            f"Error in the report request: {response.status_code} - {response.text}"
         )
 
     return response.json()
 
 
 def _short_name(dim_id: str) -> str:
-    """Riduce un id tipo 'variables/xxx.yyy.Product_Id' all'ultimo segmento leggibile."""
+    """Shortens an id like 'variables/xxx.yyy.Product_Id' to its last readable segment."""
     if not isinstance(dim_id, str):
         return str(dim_id)
     return dim_id.split("/")[-1].split(".")[-1]
@@ -101,21 +101,21 @@ def _short_name(dim_id: str) -> str:
 
 def cja_response_to_df(response_json: dict, report_payload: dict | None = None) -> pd.DataFrame:
     """
-    Converte una response CJA /reports in DataFrame.
-    Gestisce sia il caso classico a 1 dimensione ("columns.dimension", singolare)
-    sia il caso "multiple dimension reporting" introdotto da Adobe
-    ("columns.dimensions", plurale, con dimensionColumnId).
+    Converts a CJA /reports response into a DataFrame.
+    Handles both the classic single-dimension case ("columns.dimension", singular)
+    and the "multiple dimension reporting" case introduced by Adobe
+    ("columns.dimensions", plural, with dimensionColumnId).
 
-    NB: la struttura esatta di ogni riga nel caso multi-dimensione non è
-    documentata pubblicamente da Adobe in modo completo: qui si prova prima
-    la forma più probabile (un valore per dimensione, stesso ordine di
-    columns.dimensions) e si ricade su alternative note se la prima non
-    combacia con le chiavi presenti nella riga.
+    NOTE: the exact per-row structure for the multi-dimension case is not fully
+    documented publicly by Adobe: this function first tries the most likely
+    shape (one value per dimension, same order as columns.dimensions) and
+    falls back to known alternatives if that doesn't match the keys present
+    in the row.
     """
     rows = response_json.get("rows", [])
     columns = response_json.get("columns", {})
 
-    # --- Nomi dimensione/i ---
+    # --- Dimension name(s) ---
     dims_multi = columns.get("dimensions") if isinstance(columns, dict) else None
     if dims_multi:
         dim_names = [_short_name(d.get("id", f"dim_{i}")) for i, d in enumerate(dims_multi)]
@@ -123,8 +123,8 @@ def cja_response_to_df(response_json: dict, report_payload: dict | None = None) 
         single_dim = columns.get("dimension", {}) if isinstance(columns, dict) else {}
         dim_names = [_short_name(single_dim.get("id", "dimension"))]
 
-    # --- Nomi metriche: se disponibile, usa gli id reali dal payload della request
-    # (molto più leggibili di "metric_0", "metric_1", ...) altrimenti fallback sui columnIds
+    # --- Metric names: if available, use the real ids from the request payload
+    # (much more readable than "metric_0", "metric_1", ...), otherwise fall back to columnIds
     metric_names = None
     if report_payload:
         metrics = report_payload.get("metricContainer", {}).get("metrics", [])
@@ -140,18 +140,18 @@ def cja_response_to_df(response_json: dict, report_payload: dict | None = None) 
         row_dict = {}
 
         if n_dims == 1:
-            # Caso classico: un solo valore dimensione
+            # Classic case: a single dimension value
             row_dict[dim_names[0]] = row.get("value")
         else:
-            # Caso multi-dimensione: prova diverse chiavi possibili, in ordine di probabilità
+            # Multi-dimension case: try several possible keys, in order of likelihood
             dim_values = None
             if isinstance(row.get("value"), list):
                 dim_values = row["value"]
             elif isinstance(row.get("values"), list):
                 dim_values = row["values"]
             elif isinstance(row.get("value"), str):
-                # Fallback: valore singolo concatenato -> non separabile con certezza,
-                # lo mettiamo intero nella prima colonna dimensione e lasciamo le altre vuote
+                # Fallback: a single concatenated value -> cannot be split reliably,
+                # put it whole in the first dimension column and leave the others empty
                 dim_values = [row["value"]] + [None] * (n_dims - 1)
 
             if dim_values is None:
@@ -219,13 +219,13 @@ default_report_json = {
 # SIDEBAR
 # ==============================
 with st.sidebar:
-    st.header("Configurazione")
+    st.header("Configuration")
     uploaded_credentials = st.file_uploader(
-        "Carica file credenziali JSON",
+        "Upload credentials JSON file",
         type=["json"]
     )
 
-    show_raw_response = st.checkbox("Mostra risposta JSON completa", value=True)
+    show_raw_response = st.checkbox("Show full JSON response", value=True)
 
 
 # ==============================
@@ -233,13 +233,13 @@ with st.sidebar:
 # ==============================
 st.subheader("Report request JSON")
 report_json_text = st.text_area(
-    "Incolla qui il JSON della report request",
+    "Paste the report request JSON here",
     value=json.dumps(default_report_json, indent=2),
     height=350,
     placeholder='{"rsid":"dv_...","metricContainer":{...}}'
 )
 
-run_button = st.button("Esegui report", type="primary")
+run_button = st.button("Run report", type="primary")
 
 
 # ==============================
@@ -247,7 +247,7 @@ run_button = st.button("Esegui report", type="primary")
 # ==============================
 if run_button:
     if uploaded_credentials is None:
-        st.error("Carica prima il file JSON con le credenziali.")
+        st.error("Please upload the credentials JSON file first.")
         st.stop()
 
     try:
@@ -261,41 +261,41 @@ if run_button:
         report_payload = json.loads(report_json_text)
 
     except json.JSONDecodeError as e:
-        st.error(f"Il JSON della report request non è valido: {e}")
+        st.error(f"The report request JSON is not valid: {e}")
         st.stop()
     except Exception as e:
         st.error(str(e))
         st.stop()
 
-    with st.spinner("Recupero token e lancio report..."):
+    with st.spinner("Retrieving token and running report..."):
         try:
             token = get_access_token(client_id, client_secret, scope)
             result = run_cja_report(token, client_id, org_id, report_payload)
             df = cja_response_to_df(result, report_payload)
 
-            st.success("Report eseguito con successo.")
+            st.success("Report executed successfully.")
 
             if result.get("rows"):
-                with st.expander("Debug: struttura raw della prima riga (utile se le dimensioni non tornano corrette)"):
+                with st.expander("Debug: raw structure of the first row (useful if dimensions don't look right)"):
                     st.json(result["rows"][0])
                     st.json(result.get("columns", {}))
 
-            st.subheader("Output tabellare")
+            st.subheader("Table output")
             if df.empty:
-                st.warning("La risposta è valida ma il DataFrame risulta vuoto.")
+                st.warning("The response is valid but the resulting DataFrame is empty.")
             else:
                 st.dataframe(df, use_container_width=True)
 
                 csv_data = df.to_csv(index=False).encode("utf-8")
                 st.download_button(
-                    label="Scarica CSV",
+                    label="Download CSV",
                     data=csv_data,
                     file_name="cja_report_output.csv",
                     mime="text/csv"
                 )
 
             if show_raw_response:
-                st.subheader("Risposta JSON completa")
+                st.subheader("Full JSON response")
                 st.json(result)
 
         except Exception as e:

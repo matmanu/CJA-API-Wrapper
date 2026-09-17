@@ -108,13 +108,32 @@ __pycache__/
 ```
 (Adjust if you want to keep some JSON files, e.g. a config template, tracked.)
 
+## Screenshots
+
+**Main interface** — paste your report request JSON and run it:
+
+![App interface](docs/screenshot-ui.png)
+
+**Table output** — parsed result as a DataFrame, ready to download as CSV (row data pixelated for this example):
+
+![Table output](docs/screenshot-table-output.png)
+
+**Debug / full JSON response** — raw response structure, useful for troubleshooting dimensions (values pixelated for this example):
+
+![Full JSON response](docs/screenshot-json-response.png)
+
 ## Project structure
 
 ```
 .
 ├── API_Request_wrapper.py   # Main Streamlit app
 ├── requirements.txt         # Python dependencies
-└── README.md                 # This file
+├── README.md                 # This file
+├── LICENSE                   # MIT License
+└── docs/
+    ├── screenshot-ui.png
+    ├── screenshot-table-output.png
+    └── screenshot-json-response.png
 ```
 
 ## License

@@ -97,16 +97,6 @@ The app detects this automatically and creates one column per dimension. Adobe d
 - The app never persists the uploaded credentials file to disk — it's read in memory for the session only.
 - Access tokens are requested fresh on every report run and are not cached or stored.
 
-## Suggested `.gitignore`
-
-```
-*.json
-!requirements.json
-.venv/
-__pycache__/
-.streamlit/
-```
-(Adjust if you want to keep some JSON files, e.g. a config template, tracked.)
 
 ## Project structure
 
